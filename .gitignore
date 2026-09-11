@@ -67,3 +67,27 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# ranger-lio: colcon / ROS 2 workspaces
+install/
+log/
+
+# ranger-lio: datasets never live in the repo (bind-mounted from /home/dexter/data)
+data/
+*.bag
+*.db3
+*.mcap
+
+# ranger-lio: results are regenerated; only the README and final tables/plots are tracked
+results/*
+!results/README.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store

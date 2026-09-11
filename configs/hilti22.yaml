@@ -1,0 +1,79 @@
+# Hilti-Oxford 2022 dataset configuration for ranger-lio.
+#
+# Sources (checked 2026-09-11):
+#   calibration: https://huggingface.co/datasets/Hilti-Research/hilti-slam-challenge-2022/blob/main/calibration/calibration_files/lidar_calibration.yaml
+#   sensors:     Zhang et al., "Hilti-Oxford Dataset", RA-L 2023 (arXiv 2208.09825), Table I
+#   frames:      https://github.com/Hilti-Research/hilti-slam-challenge-2022 (FAQ)
+#
+# Frames (see docs/00-notation.md): W world, I IMU (ground truth is expressed in I), L LiDAR.
+# T_A_B maps points from B to A; quaternions are (x, y, z, w) as in ROS and the calibration file.
+
+dataset:
+  name: hilti22
+  root: /data/hilti22                 # inside the container (host: /home/dexter/data/hilti22)
+  sequences:
+    exp14_basement_2:      { role: A, ground_truth: ground_truth/exp14_basement_2_imu.txt }
+    exp18_corridor_lower_gallery_2: { role: B, ground_truth: ground_truth/exp18_corridor_lower_gallery_2_imu.txt }
+    exp16_attic_to_upper_gallery_2: { role: C, ground_truth: ground_truth/exp16_attic_to_upper_gallery_2_imu.txt }
+
+topics:
+  # Measured by scripts/inspect_bag.py on exp14 (2026-09-11); the dataset does not document them.
+  lidar: /hesai/pandar          # sensor_msgs/PointCloud2, 740 msgs in 74 s
+  imu: /alphasense/imu          # sensor_msgs/Imu, 29539 msgs in 74 s
+
+sensors:
+  lidar:
+    model: Hesai PandarXT-32
+    nominal_rate_hz: 10
+    channels: 32
+    max_range_m: 120
+    measured_rate_hz: 10.00             # inspect_bag.py: period 100.00 ms, std 0.01 ms
+    points_per_scan: 52000              # inspect_bag.py: 51968 to 52114 in the first 8 scans
+    # Per-point time field inside PointCloud2 (Hesai PointXYZIT), verified by inspect_bag.py:
+    # fields x,y,z f32 @0,4,8; intensity f32 @16; timestamp f64 @24; ring u16 @32; point_step 48.
+    point_time_field: timestamp
+    point_time_unit: seconds_absolute   # float64 epoch seconds; min == header stamp, spread 0.100 s per scan
+  imu:
+    model: Bosch BMI085
+    nominal_rate_hz: 400
+    measured_rate_hz: 399.2             # inspect_bag.py: period 2.505 ms, std 0.004 ms
+    # First 1.0 s of exp14 (operator standing still), 401 samples:
+    gyro_bias_rad_s: [1.06e-3, -2.82e-4, -3.51e-5]      # mean; consistent in magnitude with calibration bias_g
+    gyro_noise_rad_s: [2.82e-3, 3.76e-3, 3.16e-3]       # 1 sigma per sample at 399 Hz
+    accel_rest_m_s2: [0.173, 0.164, -9.660]             # mean specific force; |a| = 9.663, 1 sigma 0.015
+    up_axis_in_I: -z                                    # accelerometer reads +g along up, so up is -z_I
+    # Consequence with T_I_L (z_L -> -z_I): the LiDAR spin axis z_L points up. The calibration
+    # file's "gravity" along +y was recorded with the device in a different attitude.
+
+extrinsics:
+  # Verbatim from lidar_calibration.yaml ("PandarXT-32", parent: imu), i.e. T_I_L.
+  T_I_L:
+    quaternion_xyzw: [0.7071068, -0.7071068, 0.0, 0.0]
+    translation_m: [-0.001, -0.00855, 0.055]
+  # Verbatim ("measurement_tip", parent: imu), i.e. T_I_T. Not used by odometry.
+  T_I_T:
+    quaternion_xyzw: [0.0, 0.0, 0.0, 1.0]
+    translation_m: [0.059, -0.00855, 0.1964]
+  # Verbatim IMU intrinsics block from the same file. "gravity" is the calibration file's
+  # value in frame I; whether it is the gravity vector or the specific force at rest is
+  # settled by measurement in week 1 (docs/00-notation.md, worked example).
+  imu_intrinsics:
+    bias_a: [0.06080652138668933, 0.08353074835853214, 0.057072968234636895]
+    bias_g: [-0.0015351229643790084, -0.0013449146576507546, 0.00030127855524786183]
+    gravity: [0.01165152782783894, 9.804989173462031, -0.008749296634685332]
+
+# Week 2 placeholders; tuned on sequence A only, then frozen.
+preprocess:
+  min_range_m: 0.5
+  max_range_m: 60.0
+  voxel_size_m: 0.25
+deskew:
+  enabled: true
+registration:
+  num_threads: 4
+  max_correspondence_distance_m: 1.0
+  local_map_voxel_size_m: 0.5
+  local_map_max_voxels: 200000
+keyframe:
+  min_translation_m: 0.5
+  min_rotation_deg: 10.0

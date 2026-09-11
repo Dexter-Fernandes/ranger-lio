@@ -1,0 +1,6 @@
+.git
+build/
+results/
+data/
+*.bag
+*.mcap
