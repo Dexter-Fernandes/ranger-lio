@@ -28,8 +28,10 @@ jobs:
 
       - name: Configure, build, test
         run: |
-          docker run --rm -v "$PWD":/workspaces/ranger-lio -w /workspaces/ranger-lio ranger-lio:ci \
-            bash -lc 'cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          docker run --rm -v "$PWD":/workspaces/ranger-lio -w /workspaces/ranger-lio \
+            -u "$(id -u):$(id -g)" -e HOME=/tmp ranger-lio:ci \
+            bash -lc 'source /opt/ros/jazzy/setup.bash \
+                      && cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
                       && cmake --build build \
                       && ctest --test-dir build --output-on-failure \
                       && ./build/apps/check_deps'
